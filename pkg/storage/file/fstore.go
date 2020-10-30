@@ -226,30 +226,27 @@ func (fs *Store) VisitMailboxes(f func([]storage.Message) (cont bool)) error {
 // mbox returns the named mailbox.
 func (fs *Store) mbox(mailbox string) *mbox {
 	hash := stringutil.HashMailboxName(mailbox)
-	s1 := hash[0:3]
-	s2 := hash[0:6]
-	path := filepath.Join(fs.mailPath, s1, s2, hash)
+	path := filepath.Join(fs.mailPath, mailbox)
 	indexPath := filepath.Join(path, indexFileName)
 	return &mbox{
 		RWMutex:   fs.hashLock.Get(hash),
 		store:     fs,
 		name:      mailbox,
-		dirName:   hash,
+		dirName:   mailbox,
 		path:      path,
 		indexPath: indexPath,
 	}
 }
 
 // mboxFromPath constructs a mailbox based on name hash.
-func (fs *Store) mboxFromHash(hash string) *mbox {
-	s1 := hash[0:3]
-	s2 := hash[0:6]
-	path := filepath.Join(fs.mailPath, s1, s2, hash)
+func (fs *Store) mboxFromHash(mailbox string) *mbox {
+	hash := stringutil.HashMailboxName(mailbox)
+	path := filepath.Join(fs.mailPath, mailbox)
 	indexPath := filepath.Join(path, indexFileName)
 	return &mbox{
 		RWMutex:   fs.hashLock.Get(hash),
 		store:     fs,
-		dirName:   hash,
+		dirName:   mailbox,
 		path:      path,
 		indexPath: indexPath,
 	}
