@@ -429,7 +429,7 @@ func (s *Session) transactionHandler(cmd string, args []string) {
 func (s *Session) sendMessage(msg storage.Message) {
 	reader, err := msg.Source()
 	if err != nil {
-		s.logger.Error().Msgf("Failed to read message for RETR command")
+		s.logger.Error().Msgf("Failed to read message from source for RETR command")
 		s.send("-ERR Failed to RETR that message, internal error")
 		return
 	}

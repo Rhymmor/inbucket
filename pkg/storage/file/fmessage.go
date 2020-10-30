@@ -24,9 +24,7 @@ type Message struct {
 	Fseen    bool
 }
 
-// newMessage creates a new FileMessage object and sets the Date and ID fields.
-// It will also delete messages over messageCap if configured.
-func (mb *mbox) newMessage() (*Message, error) {
+func (mb *mbox) newMessageWithParams(id string, date time.Time) (*Message, error) {
 	// Load index
 	if !mb.indexLoaded {
 		if err := mb.readIndex(); err != nil {
@@ -45,9 +43,14 @@ func (mb *mbox) newMessage() (*Message, error) {
 			}
 		}
 	}
-	date := time.Now()
-	id := generateID(date)
 	return &Message{mailbox: mb, Fid: id, Fdate: date}, nil
+}
+
+// newMessage creates a new FileMessage object and sets the Date and ID fields.
+// It will also delete messages over messageCap if configured.
+func (mb *mbox) newMessage() (*Message, error) {
+	date := time.Now()
+	return mb.newMessageWithParams(generateID(date), date)
 }
 
 // Mailbox returns the name of the mailbox this message resides in.

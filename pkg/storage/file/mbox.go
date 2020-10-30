@@ -7,8 +7,11 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
+	"syscall"
 
+	"github.com/inbucket/inbucket/pkg/message"
 	"github.com/inbucket/inbucket/pkg/storage"
 	"github.com/rs/zerolog/log"
 )
@@ -24,6 +27,70 @@ type mbox struct {
 	indexLoaded bool
 	indexPath   string
 	messages    []*Message
+}
+
+func (mb *mbox) initializeFromFs() error {
+	messages, err := readDirNames(mb.path)
+	if err != nil {
+		return err
+	}
+
+	mb.messages = mb.messages[:0]
+	err = os.Remove(mb.indexPath)
+	if err != nil {
+		e, ok := err.(*os.PathError)
+		if !ok || e.Err != syscall.ENOENT {
+			return err
+		}
+	}
+
+	for _, messageFile := range messages {
+		if !strings.HasSuffix(messageFile, ".raw") {
+			continue
+		}
+
+		message, err := mb.parseMessageFile(messageFile)
+		if err != nil {
+			return err
+		}
+
+		mb.messages = append(mb.messages, message)
+	}
+
+	return nil
+}
+
+func (mb *mbox) parseMessageFile(messageFile string) (*Message, error) {
+	filePath := filepath.Join(mb.path, messageFile)
+
+	stat, err := os.Stat(filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	f, err := os.Open(filePath)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	reader := mb.store.getPooledReader(f)
+	defer mb.store.putPooledReader(reader)
+
+	delivery, err := message.ParseDelivery(reader, mb.name)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Message{
+		mailbox:  mb,
+		Fid:      strings.TrimSuffix(messageFile, ".raw"),
+		Fdate:    delivery.Date(),
+		Ffrom:    delivery.From(),
+		Fsize:    stat.Size(),
+		Fsubject: delivery.Subject(),
+		Fto:      delivery.To(),
+	}, nil
 }
 
 // getMessages scans the mailbox directory for .gob files and decodes them into

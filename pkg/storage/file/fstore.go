@@ -61,7 +61,8 @@ func New(cfg config.Storage) (storage.Store, error) {
 				Msg("Error creating dir")
 		}
 	}
-	return &Store{
+
+	store := &Store{
 		path:       path,
 		mailPath:   mailPath,
 		messageCap: cfg.MailboxMsgCap,
@@ -70,7 +71,14 @@ func New(cfg config.Storage) (storage.Store, error) {
 				return bufio.NewReader(nil)
 			},
 		},
-	}, nil
+	}
+
+	err := store.initFromFs()
+	if err != nil {
+		return nil, err
+	}
+
+	return store, nil
 }
 
 // AddMessage adds a message to the specified mailbox.
@@ -223,33 +231,68 @@ func (fs *Store) VisitMailboxes(f func([]storage.Message) (cont bool)) error {
 	return nil
 }
 
+func (fs *Store) initFromFs() error {
+	mailboxes, err := readDirNames(fs.mailPath)
+	if err != nil {
+		return err
+	}
+
+	var wg sync.WaitGroup
+	var errors []error
+
+	for _, mailbox := range mailboxes {
+		wg.Add(1)
+		mb := fs.mbox(mailbox)
+		go func() {
+			defer wg.Done()
+
+			err := mb.initializeFromFs()
+			if err != nil {
+				errors = append(errors, err)
+				return
+			}
+
+			err = mb.writeIndex()
+			if err != nil {
+				errors = append(errors, err)
+				return
+			}
+
+		}()
+	}
+
+	wg.Wait()
+
+	if len(errors) > 0 {
+		return errors[0]
+	}
+	return nil
+}
+
 // mbox returns the named mailbox.
 func (fs *Store) mbox(mailbox string) *mbox {
 	hash := stringutil.HashMailboxName(mailbox)
-	s1 := hash[0:3]
-	s2 := hash[0:6]
-	path := filepath.Join(fs.mailPath, s1, s2, hash)
+	path := filepath.Join(fs.mailPath, mailbox)
 	indexPath := filepath.Join(path, indexFileName)
 	return &mbox{
 		RWMutex:   fs.hashLock.Get(hash),
 		store:     fs,
 		name:      mailbox,
-		dirName:   hash,
+		dirName:   mailbox,
 		path:      path,
 		indexPath: indexPath,
 	}
 }
 
 // mboxFromPath constructs a mailbox based on name hash.
-func (fs *Store) mboxFromHash(hash string) *mbox {
-	s1 := hash[0:3]
-	s2 := hash[0:6]
-	path := filepath.Join(fs.mailPath, s1, s2, hash)
+func (fs *Store) mboxFromHash(mailbox string) *mbox {
+	hash := stringutil.HashMailboxName(mailbox)
+	path := filepath.Join(fs.mailPath, mailbox)
 	indexPath := filepath.Join(path, indexFileName)
 	return &mbox{
 		RWMutex:   fs.hashLock.Get(hash),
 		store:     fs,
-		dirName:   hash,
+		dirName:   mailbox,
 		path:      path,
 		indexPath: indexPath,
 	}

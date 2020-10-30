@@ -130,20 +130,28 @@ func main() {
 	retentionScanner := storage.NewRetentionScanner(conf.Storage, store, shutdownChan)
 	retentionScanner.Start()
 
-	// Configure routes and start HTTP server.
-	prefix := stringutil.MakePathPrefixer(conf.Web.BasePath)
-	webui.SetupRoutes(web.Router.PathPrefix(prefix("/serve/")).Subrouter())
-	rest.SetupRoutes(web.Router.PathPrefix(prefix("/api/")).Subrouter())
-	web.Initialize(conf, shutdownChan, mmanager, msgHub)
-	go web.Start(rootCtx)
+	if conf.Web.Enabled {
+		// Configure routes and start HTTP server.
+		prefix := stringutil.MakePathPrefixer(conf.Web.BasePath)
+		webui.SetupRoutes(web.Router.PathPrefix(prefix("/serve/")).Subrouter())
+		rest.SetupRoutes(web.Router.PathPrefix(prefix("/api/")).Subrouter())
+		web.Initialize(conf, shutdownChan, mmanager, msgHub)
+		go web.Start(rootCtx)
+	}
 
-	// Start POP3 server.
-	pop3Server := pop3.New(conf.POP3, shutdownChan, store)
-	go pop3Server.Start(rootCtx)
+	var pop3Server *pop3.Server
+	if conf.POP3.Enabled {
+		// Start POP3 server.
+		pop3Server = pop3.New(conf.POP3, shutdownChan, store)
+		go pop3Server.Start(rootCtx)
+	}
 
-	// Start SMTP server.
-	smtpServer := smtp.NewServer(conf.SMTP, shutdownChan, mmanager, addrPolicy)
-	go smtpServer.Start(rootCtx)
+	var smtpServer *smtp.Server
+	if conf.SMTP.Enabled {
+		// Start SMTP server.
+		smtpServer = smtp.NewServer(conf.SMTP, shutdownChan, mmanager, addrPolicy)
+		go smtpServer.Start(rootCtx)
+	}
 
 	// Loop forever waiting for signals or shutdown channel.
 signalLoop:
@@ -170,8 +178,12 @@ signalLoop:
 
 	// Wait for active connections to finish.
 	go timedExit(*pidfile)
-	smtpServer.Drain()
-	pop3Server.Drain()
+	if conf.SMTP.Enabled {
+		smtpServer.Drain()
+	}
+	if conf.POP3.Enabled {
+		pop3Server.Drain()
+	}
 	retentionScanner.Join()
 	removePIDFile(*pidfile)
 	closeLog()
