@@ -61,7 +61,8 @@ func New(cfg config.Storage) (storage.Store, error) {
 				Msg("Error creating dir")
 		}
 	}
-	return &Store{
+
+	store := &Store{
 		path:       path,
 		mailPath:   mailPath,
 		messageCap: cfg.MailboxMsgCap,
@@ -70,7 +71,14 @@ func New(cfg config.Storage) (storage.Store, error) {
 				return bufio.NewReader(nil)
 			},
 		},
-	}, nil
+	}
+
+	err := store.initFromFs()
+	if err != nil {
+		return nil, err
+	}
+
+	return store, nil
 }
 
 // AddMessage adds a message to the specified mailbox.
@@ -219,6 +227,44 @@ func (fs *Store) VisitMailboxes(f func([]storage.Message) (cont bool)) error {
 				}
 			}
 		}
+	}
+	return nil
+}
+
+func (fs *Store) initFromFs() error {
+	mailboxes, err := readDirNames(fs.mailPath)
+	if err != nil {
+		return err
+	}
+
+	var wg sync.WaitGroup
+	var errors []error
+
+	for _, mailbox := range mailboxes {
+		wg.Add(1)
+		mb := fs.mbox(mailbox)
+		go func() {
+			defer wg.Done()
+
+			err := mb.initializeFromFs()
+			if err != nil {
+				errors = append(errors, err)
+				return
+			}
+
+			err = mb.writeIndex()
+			if err != nil {
+				errors = append(errors, err)
+				return
+			}
+
+		}()
+	}
+
+	wg.Wait()
+
+	if len(errors) > 0 {
+		return errors[0]
 	}
 	return nil
 }

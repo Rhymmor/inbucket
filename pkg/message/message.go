@@ -63,6 +63,28 @@ func (m *Message) Text() string {
 	return m.env.Text
 }
 
+func ParseDelivery(reader io.Reader, mailbox string) (*Delivery, error) {
+	// TODO enmime is too heavy for this step, only need header.
+	// Go's header parsing isn't good enough, so this is blocked on enmime issue #64.
+	env, err := enmime.ReadEnvelope(reader)
+	if err != nil {
+		return nil, err
+	}
+
+	fromaddr, _ := env.AddressList("From")
+	toaddr, _ := env.AddressList("To")
+	return &Delivery{
+		Meta: Metadata{
+			Mailbox: mailbox,
+			From:    fromaddr[0],
+			To:      toaddr,
+			Date:    time.Now(),
+			Subject: env.GetHeader("Subject"),
+		},
+		Reader: reader,
+	}, nil
+}
+
 // Delivery is used to add a message to storage.
 type Delivery struct {
 	Meta   Metadata
