@@ -68,6 +68,7 @@ type Root struct {
 
 // SMTP contains the SMTP server configuration.
 type SMTP struct {
+	Enabled         bool          `required:"true" default:"false" desc:"Enable Web server"`
 	Addr            string        `required:"true" default:"0.0.0.0:2500" desc:"SMTP server IP4 host:port"`
 	Domain          string        `required:"true" default:"inbucket" desc:"HELO domain"`
 	MaxRecipients   int           `required:"true" default:"200" desc:"Maximum RCPT TO per message"`
@@ -87,6 +88,7 @@ type SMTP struct {
 
 // POP3 contains the POP3 server configuration.
 type POP3 struct {
+	Enabled bool          `required:"true" default:"false" desc:"Enable POP3 server"`
 	Addr    string        `required:"true" default:"0.0.0.0:1100" desc:"POP3 server IP4 host:port"`
 	Domain  string        `required:"true" default:"inbucket" desc:"HELLO domain"`
 	Timeout time.Duration `required:"true" default:"600s" desc:"Idle network timeout"`
@@ -95,6 +97,7 @@ type POP3 struct {
 
 // Web contains the HTTP server configuration.
 type Web struct {
+	Enabled        bool   `required:"true" default:"false" desc:"Enable Web server"`
 	Addr           string `required:"true" default:"0.0.0.0:9000" desc:"Web server IP4 host:port"`
 	BasePath       string `default:"" desc:"Base path prefix for UI and API URLs"`
 	UIDir          string `required:"true" default:"ui/dist" desc:"User interface dir"`
