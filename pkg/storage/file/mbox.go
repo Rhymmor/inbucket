@@ -44,12 +44,12 @@ func (mb *mbox) initializeFromFs() error {
 		}
 	}
 
-	for _, messageName := range messages {
-		if !strings.HasSuffix(messageName, ".raw") {
+	for _, messageFile := range messages {
+		if !strings.HasSuffix(messageFile, ".raw") {
 			continue
 		}
 
-		message, err := mb.parseMessageFile(messageName)
+		message, err := mb.parseMessageFile(messageFile)
 		if err != nil {
 			return err
 		}
@@ -60,8 +60,8 @@ func (mb *mbox) initializeFromFs() error {
 	return nil
 }
 
-func (mb *mbox) parseMessageFile(messageName string) (*Message, error) {
-	filePath := filepath.Join(mb.path, messageName)
+func (mb *mbox) parseMessageFile(messageFile string) (*Message, error) {
+	filePath := filepath.Join(mb.path, messageFile)
 
 	stat, err := os.Stat(filePath)
 	if err != nil {
@@ -84,7 +84,7 @@ func (mb *mbox) parseMessageFile(messageName string) (*Message, error) {
 
 	return &Message{
 		mailbox:  mb,
-		Fid:      messageName,
+		Fid:      strings.TrimSuffix(messageFile, ".raw"),
 		Fdate:    delivery.Date(),
 		Ffrom:    delivery.From(),
 		Fsize:    stat.Size(),
