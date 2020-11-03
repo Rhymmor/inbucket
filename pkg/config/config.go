@@ -89,7 +89,8 @@ type SMTP struct {
 // POP3 contains the POP3 server configuration.
 type POP3 struct {
 	Enabled bool          `required:"true" default:"false" desc:"Enable POP3 server"`
-	Addr    string        `required:"true" default:"0.0.0.0:1100" desc:"POP3 server IP4 host:port"`
+	Addr    string        `required:"false" desc:"POP3 server IP4 host:port"`
+	Addrv6  string        `required:"false" desc:"POP3 server IP6 host:port"`
 	Domain  string        `required:"true" default:"inbucket" desc:"HELLO domain"`
 	Timeout time.Duration `required:"true" default:"600s" desc:"Idle network timeout"`
 	Debug   bool          `ignored:"true"`
@@ -125,6 +126,11 @@ func Process() (*Root, error) {
 	stringutil.SliceToLower(c.SMTP.RejectDomains)
 	stringutil.SliceToLower(c.SMTP.StoreDomains)
 	stringutil.SliceToLower(c.SMTP.DiscardDomains)
+
+	if c.POP3.Addr == "" && c.POP3.Addrv6 == "" {
+		c.POP3.Addr = "0.0.0.0:1100"
+	}
+
 	return c, err
 }
 
