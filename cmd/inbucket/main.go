@@ -87,7 +87,7 @@ func main() {
 	}
 
 	// Logger setup.
-	closeLog, err := openLog(conf.LogLevel, *logfile, *logjson)
+	closeLog, err := openLog(conf.LogLevel, *logfile, *logjson, false)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Log error: %v\n", err)
 		os.Exit(1)
@@ -190,7 +190,7 @@ signalLoop:
 }
 
 // openLog configures zerolog output, returns func to close logfile.
-func openLog(level string, logfile string, json bool) (close func(), err error) {
+func openLog(level string, logfile string, json bool, setColor bool) (close func(), err error) {
 	switch level {
 	case "debug":
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
@@ -205,7 +205,7 @@ func openLog(level string, logfile string, json bool) (close func(), err error) 
 	}
 	close = func() {}
 	var w io.Writer
-	color := runtime.GOOS != "windows"
+	color := setColor && runtime.GOOS != "windows"
 	switch logfile {
 	case "stderr":
 		w = os.Stderr
