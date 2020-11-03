@@ -203,29 +203,15 @@ func (fs *Store) VisitMailboxes(f func([]storage.Message) (cont bool)) error {
 	}
 	// Loop over level 1 directories
 	for _, name1 := range names1 {
-		names2, err := readDirNames(fs.mailPath, name1)
+		mb := fs.mboxFromHash(name1)
+		mb.RLock()
+		msgs, err := mb.getMessages()
+		mb.RUnlock()
 		if err != nil {
 			return err
 		}
-		// Loop over level 2 directories
-		for _, name2 := range names2 {
-			names3, err := readDirNames(fs.mailPath, name1, name2)
-			if err != nil {
-				return err
-			}
-			// Loop over mailboxes
-			for _, name3 := range names3 {
-				mb := fs.mboxFromHash(name3)
-				mb.RLock()
-				msgs, err := mb.getMessages()
-				mb.RUnlock()
-				if err != nil {
-					return err
-				}
-				if !f(msgs) {
-					return nil
-				}
-			}
+		if !f(msgs) {
+			return nil
 		}
 	}
 	return nil
