@@ -19,6 +19,7 @@ import (
 	"github.com/inbucket/inbucket/pkg/msghub"
 	"github.com/inbucket/inbucket/pkg/policy"
 	"github.com/inbucket/inbucket/pkg/rest"
+	"github.com/inbucket/inbucket/pkg/server"
 	"github.com/inbucket/inbucket/pkg/server/pop3"
 	"github.com/inbucket/inbucket/pkg/server/smtp"
 	"github.com/inbucket/inbucket/pkg/server/web"
@@ -38,6 +39,20 @@ var (
 	// date contains the build date, populated during linking.
 	date = "undefined"
 )
+
+type ServerTuple struct {
+	v4 server.IServer
+	v6 server.IServer
+}
+
+func (st *ServerTuple) Drain() {
+	if st.v4 != nil {
+		st.v4.Drain()
+	}
+	if st.v6 != nil {
+		st.v6.Drain()
+	}
+}
 
 func init() {
 	// Server uptime for status page.
@@ -139,14 +154,20 @@ func main() {
 		go web.Start(rootCtx)
 	}
 
-	var pop3Server *pop3.Server
+	var pop3ServerTuple ServerTuple
 	if conf.POP3.Enabled {
 		// Start POP3 server.
-		pop3Server = pop3.New(conf.POP3, shutdownChan, store)
-		go pop3Server.Start(rootCtx)
+		if conf.POP3.Addr != "" {
+			pop3ServerTuple.v4 = pop3.New(conf.POP3, conf.POP3.Addr, "tcp4", shutdownChan, store)
+			go pop3ServerTuple.v4.Start(rootCtx)
+		}
+		if conf.POP3.Addrv6 != "" {
+			pop3ServerTuple.v6 = pop3.New(conf.POP3, conf.POP3.Addrv6, "tcp6", shutdownChan, store)
+			go pop3ServerTuple.v6.Start(rootCtx)
+		}
 	}
 
-	var smtpServer *smtp.Server
+	var smtpServer server.IServer
 	if conf.SMTP.Enabled {
 		// Start SMTP server.
 		smtpServer = smtp.NewServer(conf.SMTP, shutdownChan, mmanager, addrPolicy)
@@ -178,12 +199,11 @@ signalLoop:
 
 	// Wait for active connections to finish.
 	go timedExit(*pidfile)
-	if conf.SMTP.Enabled {
+	if smtpServer != nil {
 		smtpServer.Drain()
 	}
-	if conf.POP3.Enabled {
-		pop3Server.Drain()
-	}
+	pop3ServerTuple.Drain()
+
 	retentionScanner.Join()
 	removePIDFile(*pidfile)
 	closeLog()

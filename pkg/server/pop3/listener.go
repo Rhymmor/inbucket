@@ -13,7 +13,9 @@ import (
 
 // Server defines an instance of the POP3 server.
 type Server struct {
-	config         config.POP3     // POP3 configuration.
+	config         config.POP3
+	address        string
+	addressType    string
 	store          storage.Store   // Mail store.
 	listener       net.Listener    // TCP listener.
 	globalShutdown chan bool       // Inbucket shutdown signal.
@@ -21,9 +23,11 @@ type Server struct {
 }
 
 // New creates a new Server struct.
-func New(pop3Config config.POP3, shutdownChan chan bool, store storage.Store) *Server {
+func New(config config.POP3, address string, addressType string, shutdownChan chan bool, store storage.Store) *Server {
 	return &Server{
-		config:         pop3Config,
+		config:         config,
+		address:        address,
+		addressType:    addressType,
 		store:          store,
 		globalShutdown: shutdownChan,
 		wg:             new(sync.WaitGroup),
@@ -33,16 +37,16 @@ func New(pop3Config config.POP3, shutdownChan chan bool, store storage.Store) *S
 // Start the server and listen for connections
 func (s *Server) Start(ctx context.Context) {
 	slog := log.With().Str("module", "pop3").Str("phase", "startup").Logger()
-	addr, err := net.ResolveTCPAddr("tcp4", s.config.Addr)
+	addr, err := net.ResolveTCPAddr(s.addressType, s.address)
 	if err != nil {
-		slog.Error().Err(err).Msg("Failed to build tcp4 address")
+		slog.Error().Err(err).Msg("Failed to build " + s.addressType + " address")
 		s.emergencyShutdown()
 		return
 	}
-	slog.Info().Str("addr", addr.String()).Msg("POP3 listening on tcp4")
-	s.listener, err = net.ListenTCP("tcp4", addr)
+	slog.Info().Str("addr", addr.String()).Msg("POP3 listening on " + s.addressType)
+	s.listener, err = net.ListenTCP("tcp", addr)
 	if err != nil {
-		slog.Error().Err(err).Msg("Failed to start tcp4 listener")
+		slog.Error().Err(err).Msg("Failed to start " + s.addressType + " listener")
 		s.emergencyShutdown()
 		return
 	}
