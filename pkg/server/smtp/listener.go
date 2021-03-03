@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/tls"
 	"expvar"
+	"fmt"
 	"net"
 	"sync"
 	"time"
@@ -58,7 +59,8 @@ func init() {
 
 // Server holds the configuration and state of our SMTP server.
 type Server struct {
-	config         config.SMTP        // SMTP configuration.
+	config         config.SMTP // SMTP configuration.
+	tcpVersion     string
 	addrPolicy     *policy.Addressing // Address policy.
 	globalShutdown chan bool          // Shuts down Inbucket.
 	manager        message.Manager    // Used to deliver messages.
@@ -70,6 +72,7 @@ type Server struct {
 // NewServer creates a new Server instance with the specificed config.
 func NewServer(
 	smtpConfig config.SMTP,
+	tcpVersion string,
 	globalShutdown chan bool,
 	manager message.Manager,
 	apolicy *policy.Addressing,
@@ -91,6 +94,7 @@ func NewServer(
 
 	return &Server{
 		config:         smtpConfig,
+		tcpVersion:     tcpVersion,
 		globalShutdown: globalShutdown,
 		manager:        manager,
 		addrPolicy:     apolicy,
@@ -102,16 +106,23 @@ func NewServer(
 // Start the listener and handle incoming connections.
 func (s *Server) Start(ctx context.Context) {
 	slog := log.With().Str("module", "smtp").Str("phase", "startup").Logger()
-	addr, err := net.ResolveTCPAddr("tcp4", s.config.Addr)
+	configAddr, err := s.getAddress(s.config)
 	if err != nil {
-		slog.Error().Err(err).Msg("Failed to build tcp4 address")
+		slog.Error().Err(err).Msg("Failed to get server address")
 		s.emergencyShutdown()
 		return
 	}
-	slog.Info().Str("addr", addr.String()).Msg("SMTP listening on tcp4")
-	s.listener, err = net.ListenTCP("tcp4", addr)
+
+	addr, err := net.ResolveTCPAddr(s.tcpVersion, configAddr)
 	if err != nil {
-		slog.Error().Err(err).Msg("Failed to start tcp4 listener")
+		slog.Error().Err(err).Msgf("Failed to build %q address", s.tcpVersion)
+		s.emergencyShutdown()
+		return
+	}
+	slog.Info().Str("addr", addr.String()).Msgf("SMTP listening on %q", s.tcpVersion)
+	s.listener, err = net.ListenTCP("tcp", addr)
+	if err != nil {
+		slog.Error().Err(err).Msgf("Failed to start %q listener", s.tcpVersion)
 		s.emergencyShutdown()
 		return
 	}
@@ -124,6 +135,16 @@ func (s *Server) Start(ctx context.Context) {
 	// Closing the listener will cause the serve() go routine to exit.
 	if err := s.listener.Close(); err != nil {
 		slog.Error().Err(err).Msg("Failed to close SMTP listener")
+	}
+}
+
+func (s *Server) getAddress(smtpConfig config.SMTP) (string, error) {
+	if s.tcpVersion == "tcp4" {
+		return smtpConfig.Addr, nil
+	} else if s.tcpVersion == "tcp6" {
+		return smtpConfig.Addrv6, nil
+	} else {
+		return "", fmt.Errorf("Unsupported TCP Version: %q", s.tcpVersion)
 	}
 }
 

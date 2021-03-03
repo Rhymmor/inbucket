@@ -167,11 +167,17 @@ func main() {
 		}
 	}
 
-	var smtpServer server.IServer
+	var smtpServerTuple ServerTuple
 	if conf.SMTP.Enabled {
 		// Start SMTP server.
-		smtpServer = smtp.NewServer(conf.SMTP, shutdownChan, mmanager, addrPolicy)
-		go smtpServer.Start(rootCtx)
+		if conf.SMTP.Addr != "" {
+			smtpServerTuple.v4 = smtp.NewServer(conf.SMTP, "tcp4", shutdownChan, mmanager, addrPolicy)
+			go smtpServerTuple.v4.Start(rootCtx)
+		}
+		if conf.SMTP.Addrv6 != "" {
+			smtpServerTuple.v6 = smtp.NewServer(conf.SMTP, "tcp6", shutdownChan, mmanager, addrPolicy)
+			go smtpServerTuple.v6.Start(rootCtx)
+		}
 	}
 
 	// Loop forever waiting for signals or shutdown channel.
@@ -199,9 +205,7 @@ signalLoop:
 
 	// Wait for active connections to finish.
 	go timedExit(*pidfile)
-	if smtpServer != nil {
-		smtpServer.Drain()
-	}
+	smtpServerTuple.Drain()
 	pop3ServerTuple.Drain()
 
 	retentionScanner.Join()
