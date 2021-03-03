@@ -69,7 +69,8 @@ type Root struct {
 // SMTP contains the SMTP server configuration.
 type SMTP struct {
 	Enabled         bool          `required:"true" default:"false" desc:"Enable Web server"`
-	Addr            string        `required:"true" default:"0.0.0.0:2500" desc:"SMTP server IP4 host:port"`
+	Addr            string        `required:"false" desc:"SMTP server IP4 host:port"`
+	Addrv6          string        `required:"false" desc:"SMTP server IP4 host:port"`
 	Domain          string        `required:"true" default:"inbucket" desc:"HELO domain"`
 	MaxRecipients   int           `required:"true" default:"200" desc:"Maximum RCPT TO per message"`
 	MaxMessageBytes int           `required:"true" default:"10240000" desc:"Maximum message size"`
@@ -129,6 +130,10 @@ func Process() (*Root, error) {
 
 	if c.POP3.Addr == "" && c.POP3.Addrv6 == "" {
 		c.POP3.Addr = "0.0.0.0:1100"
+	}
+
+	if c.SMTP.Addr == "" && c.SMTP.Addrv6 == "" {
+		c.SMTP.Addr = "0.0.0.0:2500"
 	}
 
 	return c, err
